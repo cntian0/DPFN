@@ -1,4 +1,6 @@
 # Dual-Perspective Fusion Network for Aspect-based Multimodal Sentiment Analysis
-> The paper code is being organized and will be published soon.
 
-nihao
+
+
+
+**The current repository is a significant part of the thesis code. We will follow up with a detailed description of the code running steps. Relevant data and checkpoints will also be made public.**
