@@ -6,7 +6,7 @@ Thank you for visiting this repository. This project proposes a Dual-Perspective
 
 The methodological framework of the project is as follows：
 
-![framework](/framework.png)
+![framework](img/framework.png)
 
 ### Processing data
 
