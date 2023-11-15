@@ -1,5 +1,13 @@
 # Dual-Perspective Fusion Network for Aspect-based Multimodal Sentiment Analysis
 
+### Overview
+
+Thank you for visiting this repository. This project proposes a Dual-Perspective Fusion Network(DPFN) to address aspect-based multimodal sentiment analysis tasks。[paper](https://ieeexplore.ieee.org/document/10269001)
+
+The methodological framework of the project is as follows：
+
+![framework](/framework.png)
+
 ### Processing data
 
 1、The twitter dataset is placed in the directory `data`, and the contents of each directory are as follows:：
