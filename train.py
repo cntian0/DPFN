@@ -1,6 +1,7 @@
 # @Author  : tiancn
 # @Time    : 2022/9/18 11:57
-from DPFN import SimpleBertModel
+from MyModel import SimpleBertModel
+import sys
 import os
 import argparse
 import torch
@@ -18,12 +19,14 @@ import math
 class Instructor:
     def __init__(self,opt):
         self.opt = opt
-        train_data_name = 'middleFile/twitter15_train_datas.pkl'
-        val_data_name = 'middleFile/twitter15_val_datas.pkl'
-        test_data_name = 'middleFile/twitter15_test_datas.pkl'
-        # train_data_name = 'middleFile/twitter17_train_datas.pkl'
-        # val_data_name = 'middleFile/twitter17_val_datas.pkl'
-        # test_data_name = 'middleFile/twitter17_test_datas.pkl'
+        if opt.dataset == "twitter15":
+            train_data_name = 'middleFile/twitter15_train_datas.pkl'
+            val_data_name = 'middleFile/twitter15_val_datas.pkl'
+            test_data_name = 'middleFile/twitter15_test_datas.pkl'
+        else:
+            train_data_name = 'middleFile/twitter17_train_datas.pkl'
+            val_data_name = 'middleFile/twitter17_val_datas.pkl'
+            test_data_name = 'middleFile/twitter17_test_datas.pkl'
         if os.path.exists(train_data_name):
             self.train_data_loader = pickle.load(open(train_data_name, 'rb'))
         else:
@@ -148,12 +151,13 @@ class Instructor:
             self.model = self.opt.model_class(self.opt).to(self.opt.device)
 
             #Configure the optimizer and scheduler.
+            #优化器
             optimizer = AdamW(self.model.parameters(), lr=self.opt.LEARNING_RATE, correct_bias=self.opt.ADAMW_CORRECT_BIAS)
             total_steps = len(self.train_data_loader) * self.opt.EPOCHS
             scheduler = get_linear_schedule_with_warmup(
                 optimizer, num_warmup_steps=self.opt.NUM_WARMUP_STEPS, num_training_steps=total_steps
             )
-            #loss
+            #损失函数
             loss_fn = nn.CrossEntropyLoss().to(self.opt.device)
             for epoch in range(self.opt.EPOCHS):
                 print(f"Epoch {epoch + 1}/{self.opt.EPOCHS} -- RUN {run_number}")
@@ -204,7 +208,7 @@ class Instructor:
                 "seed":f1_max_seed
             }
         }
-
+        #记录最大值
         curr_time = datetime.now()
         time_str = str(datetime.strftime(curr_time, '%Y-%m-%d_%H:%M:%S'))
         with open('./result/' + time_str + '.json', 'w+') as f:
@@ -220,17 +224,16 @@ def main():
     model_classes = {
         "simpleBert":SimpleBertModel
     }
-    # dataset filepath
     dataset_files = {
         'twitter15':{
-            'train':'',
-            'dev':'',
-            'test':''
+            'train':'data/twitter2015/train.tsv',
+            'dev':'data/twitter2015/dev.tsv',
+            'test':'data/twitter2015/test.tsv'
         },
         'twitter17': {
-            'train': '',
-            'dev': '',
-            'test': ''
+            'train': 'data/twitter2017/train.tsv',
+            'dev': 'data/twitter2017/dev.tsv',
+            'test': 'data/twitter2017/test.tsv'
         }
     }
     input_colses = {

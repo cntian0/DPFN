@@ -3,12 +3,16 @@
 import pandas as pd
 from transformers import BertTokenizer
 from torch.utils.data import Dataset,DataLoader
+import torch
 import json
 import torch
 import pickle
 import transformers
 from tqdm import tqdm
 import numpy as np
+import os
+import torchvision.transforms as transforms
+import cv2 as cv
 from transformers import ViTFeatureExtractor
 transformers.logging.set_verbosity_error()
 
@@ -72,22 +76,23 @@ class MyTokenizer:
 
 class Twitter(Dataset):
     def __init__(self,df,max_len,image_captions,vit_features,ori_adjs):
+        #存放处理后的数据
         self.datas = []
-        #tweet content
+        #推文内容（不含方面词）
         self.tweets = df.tweet_content.to_numpy()
-        #label
+        #标签
         self.labels = df.sentiment.to_numpy()
-        #aspect
+        #方面词
         self.sentiment_targets = df.target.to_numpy()
-        #img_name
+        #图片名称
         self.image_ids = df.image_id.to_numpy()
-        #caption
+        # 字幕
         self.image_captions = image_captions
-        #bert tokenizer
+        #bert tokenizer 后句子的最大长度
         self.max_len = max_len
-        #image feature
+        #vit特征
         self.vit_features = vit_features
-        #adj
+        #邻接矩阵
         self.ori_adjs = ori_adjs
 
         self.tokenizer_self = MyTokenizer(max_len)
@@ -95,14 +100,16 @@ class Twitter(Dataset):
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
         print('dataset:'+str(len(self.tweets)))
 
-        #vit input
-        img_dir = '/media/xdu/disk/tiancn/publicdata/twitter2015_images'
+        # vit的输入
+
+        img_dir = '/data/tiancn/publicdata/twitter2015_images'
 
         for i in tqdm(range(len(self.tweets))):
             tweet = self.tweets[i]
             label = self.labels[i]
             sentiment_target = self.sentiment_targets[i]
             image_id = self.image_ids[i]
+            ###尝试把vit整个放在模型中训练试试
             # img_path = os.path.join(img_dir, image_id)
             # img = cv.imread(img_path)
             # transf = transforms.ToTensor()
@@ -143,7 +150,7 @@ class Twitter(Dataset):
                 return_tensors="pt",
                 truncation=True,
             )
-            #tokenizer
+            #使用自定义的tokenizer
             # my_input_ids,my_attention_mask,text_lenght,trans = \
             #     self.tokenizer_self.text_to_sequence(tweet,sentiment_target + "." + caption,True)
             my_input_ids, my_attention_mask, text_length,target_mask, word_len,trans = \
@@ -160,6 +167,7 @@ class Twitter(Dataset):
             target_attention_mask = target_encoding["attention_mask"].flatten()
             #target_mult_mask = (attention_mask == 0).numpy().tolist()
 
+            #处理邻接矩阵
             # pad adj
             ori_adj = self.ori_adjs[i]
             context_asp_adj_matrix = np.zeros(
@@ -185,6 +193,8 @@ class Twitter(Dataset):
                 "context_asp_adj_matrix":torch.tensor(context_asp_adj_matrix),
                 "globel_input_id":input_ids,
                 "globel_mask":attention_mask
+
+
             }
             self.datas.append(data)
     def __len__(self):
@@ -194,9 +204,9 @@ class Twitter(Dataset):
         return self.datas[index]
 
 def creatr_data_loader(fname,type,max_len,batch_size):
-    # read data use pd
+    # 使用pandas读取数据
     df = pd.read_csv(fname, sep="\t")
-    # re name
+    # 给pandas中的数据更改一个名字
     if type == 'train' or type == 'dev':
         df = df.rename(
             {
@@ -217,19 +227,26 @@ def creatr_data_loader(fname,type,max_len,batch_size):
             },
             axis=1,
         )
-    # caption filepath
-    captions_json = ""
+    # 图像字幕
+    if("15" in fname):
+        captions_json = "data/caption/twitter2015_images.json"
+    else:
+        captions_json = "data/caption/twitter2017_images.json"
     # Load the image captions.
     with open(captions_json, "r") as f:
         image_captions = json.load(f)
 
-    # image feature filepath
-    img_data_path = ''
+    # vit提取的图像特征
+    if ("15" in fname):
+        img_data_path = 'data/imgDealFile/twitter2015_images.pkl'
+    else:
+        img_data_path = 'data/imgDealFile/twitter2017_images.pkl'
+
     with open(img_data_path, "rb") as f:
         vit_feature = pickle.load(f)
 
-    #adj maritx file path
-    adj_file = ''
+    #加载邻接矩阵
+    adj_file = 'data/oriAdj/' + type + '_ori_adj.pkl'
     with open(adj_file,"rb") as f:
         ori_adj = pickle.load(f)
 
@@ -237,6 +254,6 @@ def creatr_data_loader(fname,type,max_len,batch_size):
     return DataLoader(ds,batch_size = batch_size,num_workers=0)
 
 if __name__ == '__main__':
-    train_data_loader=creatr_data_loader('/media/xdu/disk/tiancn/publicdata/twitter2015/train.tsv','train',60,1)
+    train_data_loader=creatr_data_loader('/data/tiancn/publicdata/twitter2015/train.tsv','train',60,1)
     one_batch = next(iter(train_data_loader))
     print(one_batch)

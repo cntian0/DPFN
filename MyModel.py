@@ -136,9 +136,14 @@ class SimpleBertModel(nn.Module):
 
         self.layernorm = nn.LayerNorm(self.bert.config.hidden_size)
 
+
+
+        #图像文本多头注意力
         self.mulitHead_text_img = MultiHeadAttention(4, self.bert.config.hidden_size, self.bert.config.hidden_size,
                                             self.bert.config.hidden_size)
 
+
+        # gcn layer
         self.W1 = nn.ModuleList()
         for layer in range(self.layers):
             input_dim = self.bert.config.hidden_size
@@ -153,33 +158,44 @@ class SimpleBertModel(nn.Module):
         self.bert_drop = nn.Dropout(0.1)
         self.gcn_drop = nn.Dropout(0.1)
 
+        #se
         self.linear_global = nn.Linear(768 * 2,768)
         self.linear_local = nn.Linear(768 * 2, 768)
+
+        # TODO
+        self.linear_temp = nn.Linear(768, 768)
 
         #outMLP
         self.outMLP = nn.Linear(768 * 2,opt.NUM_CLASSES)
 
+        # TODO
+        self.outMLP_temp = nn.Linear(768, opt.NUM_CLASSES)
+
+
+
     def forward(self,inputs):
         input_ids, attention_mask,vit_feature,transformer_mask,target_input_ids,target_attention_mask,target_mask,text_length,word_length,tran_indices,context_asp_adj_matrix,globel_input_id,globel_mask= inputs
 
-        #text modility
+
+        #文本模态部分
         outputs = self.bert(input_ids = input_ids,attention_mask = attention_mask)
-        #pooler_output
+        #pooler_output : 序列的第一个token 的最后一层的隐藏状态
         text_feat =  outputs.last_hidden_state
         text_feat = self.layernorm(text_feat)
         text_feat = self.bert_drop(text_feat)
 
-        #fusion
-        text_include_img = self.mulitHead_text_img(text_feat, vit_feature, vit_feature)[0]
 
-        #cal cos
+        #文本 图像跨模态融合(跨模态多头注意力+transformer)
+        #1、多头注意力
+        text_include_img = self.mulitHead_text_img(text_feat, vit_feature, vit_feature)[0]
         similarity = torch.cosine_similarity(text_include_img.unsqueeze(2), text_include_img.unsqueeze(1), dim=-1)
 
+        #方面词 + 字幕的特征
         global_bert = self.caption_text_bert(input_ids = globel_input_id,attention_mask = globel_mask).pooler_output
         global_bert = self.layernorm(global_bert)
         global_bert = self.bert_drop(global_bert)
 
-        #GCN
+        #GCN准备步骤，将分词聚合在一起
         gcn_text_feat = text_feat[:,1:,:]
         gcn_text_img_feat = text_include_img[:, 1:, :]
         tmps = torch.zeros((input_ids.size(0), self.max_len, 768),dtype=torch.float32).to(input_ids.device)
@@ -219,11 +235,15 @@ class SimpleBertModel(nn.Module):
         gcn_out_text = (outputs_dep * aspect_mask).sum(dim=1) / asp_wn
         gcn_out_text_img = (outputs_dep_text_img * aspect_mask).sum(dim=1) / asp_wn
 
-        #target
+
+
+        #target cls标记 带图像信息的target  文本中gcn方面词  带图像特征中gcn方面词
         local_feat = self.linear_local(torch.cat([gcn_out_text, gcn_out_text_img], dim=1))
+
         local_globa_feat = torch.cat([global_bert,local_feat],dim=1)
 
-        return self.outMLP(local_globa_feat)
+        #return self.outMLP(local_globa_feat)
+        return self.outMLP_temp(self.linear_temp(gcn_out_text))
 
 
 
